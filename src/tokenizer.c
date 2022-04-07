@@ -11,6 +11,12 @@ static void start_token(struct command_tokens_t *tokens, char *ch) {
 }
 
 void tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
+    // TODO: Error handling
+
+    // Duplicate the string to avoid modifying it
+    input = strdup(input);
+    tokens->buf_start = input;
+
     size_t len = strlen(input);
     if (len > maxlen) {
         len = maxlen;
@@ -74,5 +80,6 @@ void tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
 
 void tokens_finish(struct command_tokens_t *token) {
     token->token_count = 0;
+    free(token->buf_start);
     free(token->tokens);
 }
