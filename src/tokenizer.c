@@ -10,7 +10,7 @@ static void start_token(struct command_tokens_t *tokens, char *ch) {
     tokens->tokens[tokens->token_count - 1] = ch;
 }
 
-void tokenize(struct command_tokens_t *tokens, char *input, size_t maxlen) {
+void tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
     size_t len = strlen(input);
     if (len > maxlen) {
         len = maxlen;
@@ -36,6 +36,7 @@ void tokenize(struct command_tokens_t *tokens, char *input, size_t maxlen) {
             escape = true;
             memmove(&input[i], &input[i + 1], len - i - 1);
             ch = input[i];
+            len--;
         }
 
         if (IS_WHITESPACE(ch)) {
@@ -71,7 +72,7 @@ void tokenize(struct command_tokens_t *tokens, char *input, size_t maxlen) {
     }
 }
 
-void finish(struct command_tokens_t *token) {
+void tokens_finish(struct command_tokens_t *token) {
     token->token_count = 0;
     free(token->tokens);
 }
