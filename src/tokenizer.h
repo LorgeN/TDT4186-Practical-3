@@ -16,7 +16,7 @@ struct command_tokens_t {
     char *buf_start;
 };
 
-void tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen);
+int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen);
 
 void tokens_finish(struct command_tokens_t *token);
 

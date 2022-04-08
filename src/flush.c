@@ -28,7 +28,9 @@ static void prompt() {
 
     char last_char;
     ssize_t res;
-    while ((res = read(STDIN_FILENO, buf + data, allocated - data)) >= 0) {
+    
+    // We only read 1 byte at a time to properly handly CTRL + D processing 
+    while ((res = read(STDIN_FILENO, buf + data, 1)) >= 0) {
         // This only happens when the user enters CTRL + D, which gives EOF
         if (res == 0) {
             fprintf(stdout, "\nGood bye!\n");
@@ -61,14 +63,24 @@ static void prompt() {
     }
 
     if (strlen(buf) != 0) {
+        int res;
         struct command_tokens_t tokens;
-        tokens_read(&tokens, buf, data);
+        res = tokens_read(&tokens, buf, data);
 
-        struct command_execution_t *execution;
-        commands_make_exec(buf, &tokens, &execution);
-        tokens_finish(&tokens);
+        if (res) {
+            fprintf(stderr, "Failed to parse tokens for [%s], error: %d\n", buf, res);
+        } else {
+            struct command_execution_t *execution;
+            res = commands_make_exec(buf, &tokens, &execution);
 
-        commands_execute(execution);
+            tokens_finish(&tokens);
+
+            if (res) {
+                fprintf(stderr, "Failed to make target for [%s], error: %d\n", buf, res);
+            } else {
+                commands_execute(execution);
+            }
+        }
     }
 
     free(cwd);
@@ -82,6 +94,9 @@ void __shutdown_sig_handler(int sig) {
 }
 
 int main(int argc, char **argv) {
+    // This makes it so that CTRL + C just terminates the current
+    // command being entered, essentially cancelling the current
+    // command before it is even ran
     struct sigaction shutdown_sig_action;
     sigemptyset(&shutdown_sig_action.sa_mask);
     shutdown_sig_action.sa_flags = 0;

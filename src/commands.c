@@ -6,9 +6,12 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-void commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution) {
-    // TODO: Error handling for allocations
+int commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution) {
     *execution = malloc(sizeof(struct command_execution_t));
+    if (*execution == NULL) {
+        return 1;
+    }
+
     (*execution)->command_line = command_line;
 
     (*execution)->in = NULL;  // TODO: Allow for I/O redirection
@@ -20,8 +23,24 @@ void commands_make_exec(char *command_line, struct command_tokens_t *tokens, str
     (*execution)->argc = tokens->token_count;
 
     (*execution)->argv = malloc(sizeof(char *) * ((*execution)->argc + 1));
+    if ((*execution)->argv == NULL) {
+        free(*execution);
+        return 1;
+    }
+
     for (size_t i = 0; i < (*execution)->argc; i++) {
         (*execution)->argv[i] = strdup(tokens->tokens[i]);
+
+        // Unallocate everything we allocated if this fails
+        if ((*execution)->argv[i] == NULL) {
+            for (size_t j = 0; j < i; j++) {
+                free((*execution)->argv[j]);
+            }
+
+            free((*execution)->argv);
+            free(*execution);
+            return 2;
+        }
     }
 
     (*execution)->executable = (*execution)->argv[0];

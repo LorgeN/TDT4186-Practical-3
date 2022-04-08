@@ -2,6 +2,7 @@
 #define __COMMANDS_H__
 
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "tokenizer.h"
 
@@ -12,9 +13,11 @@ struct command_execution_t {
     char *executable;
     int argc;
     char **argv;
+    bool background;
+    pid_t pid;
 };
 
-void commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution);
+int commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution);
 
 void commands_execute(struct command_execution_t *execution);
 
