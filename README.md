@@ -5,7 +5,7 @@ Contains solution for assignment made by group 80
 ## Progress
 
 - [ ] 3.1 Lorgen
-- [ ] 3.2 Martinen
+- [ ] 3.2 Martinen
 - [ ] 3.3 Jakob
 - [ ] 3.4 Lorgen
 - [ ] 3.5 Martinsen
