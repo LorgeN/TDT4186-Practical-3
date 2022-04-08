@@ -22,7 +22,7 @@ static int start_token(struct command_tokens_t *tokens, char *ch) {
 int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
     // Duplicate the string to avoid modifying it
     input = strdup(input);
-    if (input == NULL {
+    if (input == NULL) {
         return 1;
     }
     

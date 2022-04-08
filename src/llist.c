@@ -1,5 +1,8 @@
 #include "llist.h"
 
+#include <stdlib.h>
+#include <unistd.h>
+
 // Doubly linked list
 struct node_t {
     struct node_t *next;
@@ -7,8 +10,8 @@ struct node_t {
     void *element;
 };
 
-static node_t *find_node(strut list_t *list, void *element) {
-    node_t *current = list->head;
+static struct node_t *find_node(struct list_t *list, void *element) {
+    struct node_t *current = list->head;
     if (current == NULL) {
         return NULL;
     }
@@ -45,7 +48,7 @@ int llist_append_element(struct list_t *list, void *element) {
 }
 
 int llist_remove_element(struct list_t *list, void *element) {
-    node_t *node = find_node(list, element);
+    struct node_t *node = find_node(list, element);
     if (node == NULL) {
         return 1;  // Can't remove it if it isn't in the list
     }
@@ -76,10 +79,10 @@ int llist_remove_element(struct list_t *list, void *element) {
 void llist_elements(struct list_t *list, void **elements) {
     // This method assumes that elements points to an array that
     // has space for all our required pointers
-    node_t *current = list->head;
+    struct node_t *current = list->head;
     size_t index = 0;
     while (current != NULL) {
-        elements[i] = current->element;
+        elements[index++] = current->element;
         current = current->next;
     }
 }
