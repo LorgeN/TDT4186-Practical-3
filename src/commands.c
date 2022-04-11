@@ -50,6 +50,7 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens, stru
     // one less than what is allocated, so any iteration or similar
     // will not encounter any troubles
     (*execution)->argv[(*execution)->argc] = NULL;
+    return 0;
 }
 
 void commands_execute(struct command_execution_t *execution) {
