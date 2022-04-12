@@ -11,7 +11,7 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     size_t index = tokens_search(tokens, ">");
 
     if (index == -1) {
-        return 0;
+        return -1;
     }
 
     char *filename_to_write = (*tokens).tokens[index + 1];
