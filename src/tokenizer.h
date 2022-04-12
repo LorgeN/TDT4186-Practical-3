@@ -18,6 +18,10 @@ struct command_tokens_t {
 
 int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen);
 
-void tokens_finish(struct command_tokens_t *token);
+void tokens_finish(struct command_tokens_t *tokens);
+
+size_t tokens_search(struct command_tokens_t *tokens, char* target);
+
+int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t index_end);
 
 #endif

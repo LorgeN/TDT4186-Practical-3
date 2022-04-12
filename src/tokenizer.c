@@ -25,7 +25,7 @@ int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
     if (input == NULL) {
         return 1;
     }
-    
+
     tokens->buf_start = input;
 
     size_t len = strlen(input);
@@ -99,4 +99,38 @@ void tokens_finish(struct command_tokens_t *token) {
     token->token_count = 0;
     free(token->buf_start);
     free(token->tokens);
+}
+
+size_t tokens_search(struct command_tokens_t *tokens, char *target) {
+    for (size_t i = 0; i < tokens->token_count; i++) {
+        if (!strcmp(tokens->tokens[i], target)) {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t index_end) {
+    if (index_end <= index_start) {
+        return 1;
+    }
+
+    if (index_end > tokens->token_count) {
+        return 2;
+    }
+
+    size_t to_remove = index_end - index_start;
+
+    // Move any data that comes after the section we remove so that it is not also removed
+    memmove(tokens->tokens + index_start, tokens->tokens + index_end, tokens->token_count - index_end);
+
+    tokens->token_count -= to_remove;
+    char **reallocated = realloc(tokens->tokens, sizeof(char *) * tokens->token_count);
+    if (reallocated == NULL) {
+        return 3;
+    }
+
+    tokens->tokens = reallocated;
+    return 0;
 }
