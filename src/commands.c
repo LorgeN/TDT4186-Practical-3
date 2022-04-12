@@ -1,12 +1,33 @@
 #include "commands.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "filehandle.h"
+int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+    size_t index = tokens_search(tokens, ">");
+
+    if (index == -1) {
+        return 0;
+    }
+
+    char *filename_to_write = (*tokens).tokens[index + 1];
+
+    tokens_remove(tokens, index, (*tokens).token_count);
+
+    int fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+
+    execution->out = fd;
+
+    return 0;
+}
+
+int get_file_input_from_command_line(char *command_line) {
+    return -1;
+}
 
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
                        struct command_execution_t **execution) {
@@ -17,10 +38,9 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 
     (*execution)->command_line = command_line;
 
-    (*execution)->in =
-        get_file_input_from_command_line((*execution)->command_line);
+    get_file_input_from_command_line((*execution)->command_line);
 
-    (*execution)->out = get_file_output_from_command_line((*execution)->command_line);
+    get_file_output_from_command_line(tokens, (*execution));
 
     // Duplicate all strings so that they aren't lost when buffer
     // and tokens are destroyed. We only assume that execution pointer
@@ -67,6 +87,7 @@ void commands_execute(struct command_execution_t *execution) {
 
         if (execution->out >= 0) {
             dup2(execution->out, 1);
+            close(execution->out);
         }
 
         if (execution->in >= 0) {
