@@ -65,6 +65,16 @@ void commands_execute(struct command_execution_t *execution) {
     if (pid == 0) {
         // TODO: I/O redirection here
 
+        if (execution->out >= 0) {
+            dup2(execution->out, 1);
+        }
+
+        if (execution->in >= 0) {
+            printf("Has input");
+        }
+
+        printf("THIS WAS EXECUTED");
+
         // https://man7.org/linux/man-pages/man2/dup.2.html
         // Combined with STDIN_FILENO/STDOUT_FILENO etc.
         // https://stackoverflow.com/questions/2605130/redirecting-exec-output-to-a-buffer-or-file

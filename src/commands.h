@@ -1,15 +1,15 @@
 #ifndef __COMMANDS_H__
 #define __COMMANDS_H__
 
-#include <stdio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "tokenizer.h"
 
 struct command_execution_t {
-    FILE *out;
-    FILE *in;
+    int out;
+    int in;
     char *command_line;
     char *executable;
     int argc;
