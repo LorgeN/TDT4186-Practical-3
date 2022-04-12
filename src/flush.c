@@ -28,8 +28,8 @@ static void prompt() {
 
     char last_char;
     ssize_t res;
-    
-    // We only read 1 byte at a time to properly handly CTRL + D processing 
+
+    // We only read 1 byte at a time to properly handly CTRL + D processing
     while ((res = read(STDIN_FILENO, buf + data, 1)) >= 0) {
         // This only happens when the user enters CTRL + D, which gives EOF
         if (res == 0) {
@@ -68,7 +68,8 @@ static void prompt() {
         res = tokens_read(&tokens, buf, data);
 
         if (res) {
-            fprintf(stderr, "Failed to parse tokens for [%s], error: %d\n", buf, res);
+            fprintf(stderr, "Failed to parse tokens for [%s], error: %d\n", buf,
+                    res);
         } else {
             struct command_execution_t *execution;
             res = commands_make_exec(buf, &tokens, &execution);
@@ -76,7 +77,8 @@ static void prompt() {
             tokens_finish(&tokens);
 
             if (res) {
-                fprintf(stderr, "Failed to make target for [%s], error: %d\n", buf, res);
+                fprintf(stderr, "Failed to make target for [%s], error: %d\n",
+                        buf, res);
             } else {
                 commands_execute(execution);
             }

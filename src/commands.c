@@ -6,7 +6,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-int commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution) {
+#include "filehandle.h"
+
+int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
+                       struct command_execution_t **execution) {
     *execution = malloc(sizeof(struct command_execution_t));
     if (*execution == NULL) {
         return 1;
@@ -14,8 +17,10 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens, stru
 
     (*execution)->command_line = command_line;
 
-    (*execution)->in = NULL;  // TODO: Allow for I/O redirection
-    (*execution)->out = NULL;
+    (*execution)->in =
+        get_file_input_from_command_line((*execution)->command_line);
+
+    (*execution)->out = get_file_output_from_command_line((*execution)->command_line);
 
     // Duplicate all strings so that they aren't lost when buffer
     // and tokens are destroyed. We only assume that execution pointer
@@ -72,11 +77,14 @@ void commands_execute(struct command_execution_t *execution) {
 
     int status;
     if (waitpid(pid, &status, 0) == -1) {
-        fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid, execution->command_line);
+        fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid,
+                execution->command_line);
     } else if (!WIFEXITED(status)) {
-        fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", pid, execution->command_line);
+        fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", pid,
+                execution->command_line);
     } else {
-        fprintf(stdout, "Exit status [%s] = %d\n", execution->command_line, WEXITSTATUS(status));
+        fprintf(stdout, "Exit status [%s] = %d\n", execution->command_line,
+                WEXITSTATUS(status));
     }
 
     // Free all the argument strings
