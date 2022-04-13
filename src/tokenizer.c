@@ -4,18 +4,29 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static int start_token(struct command_tokens_t *tokens, char *ch) {
-    tokens->token_count++;
+static int add_token(struct command_tokens_t *tokens, char *ch, size_t len) {
+    if (len == 0) {
+        return 0;  // Nothing to add
+    }
 
     // We could preserve the previous value by not directly assigning
     // here, but if this fails the entire operation has also failed so
     // there is no point
-    tokens->tokens = realloc(tokens->tokens, sizeof(char *) * tokens->token_count);
+    tokens->tokens = realloc(tokens->tokens, sizeof(char *) * (tokens->token_count + 1));
     if (tokens->tokens == NULL) {
         return 1;
     }
 
-    tokens->tokens[tokens->token_count - 1] = ch;
+    tokens->token_count++;
+    char *dest = malloc(len + 1);
+    if (dest == NULL) {
+        return 2;
+    }
+
+    tokens->tokens[tokens->token_count - 1] = dest;
+    memcpy(dest, ch, len);
+    *(dest + len) = '\0';
+
     return 0;
 }
 
@@ -26,8 +37,6 @@ int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
         return 1;
     }
 
-    tokens->buf_start = input;
-
     size_t len = strlen(input);
     if (len > maxlen) {
         len = maxlen;
@@ -36,9 +45,9 @@ int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
     tokens->token_count = 0;
     tokens->tokens = NULL;
 
-    bool prev_whitespace = true;
     bool escape = false;
     bool quotation = false;
+    size_t start_index = 0;
 
     /*
     This method also supports quotation marks and escape character for spaces
@@ -67,37 +76,84 @@ int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
                 continue;
             }
 
-            // Replace all whitespace with null pointer to separate
-            // the string into separate strings without reallocating
-            input[i] = '\0';
-            prev_whitespace = true;
+            if (add_token(tokens, input + start_index, i - start_index)) {
+                tokens_finish(tokens);
+                free(input);
+                return 1;
+            }
+
+            start_index = i + 1;
             continue;
         }
 
-        tmp = prev_whitespace;
-        prev_whitespace = false;
+        // Special consideration to split even if there is no whitespace
+        if (IS_IO_REDIRECT(ch)) {
+            if (quotation) {
+                continue;
+            }
+
+            // Complete previous token
+            if (start_index != i) {
+                if (add_token(tokens, input + start_index, i - start_index)) {
+                    tokens_finish(tokens);
+                    free(input);
+                    return 1;
+                }
+
+                start_index = i;
+            }
+
+            // Allow ">>"
+            if ((len - i) > 1 && input[i + 1] == '>') {
+                i++;
+            }
+
+            if (add_token(tokens, input + start_index, i - start_index + 1)) {
+                tokens_finish(tokens);
+                free(input);
+                return 1;
+            }
+
+            start_index = i + 1;
+        }
 
         if (ch == '"') {
             quotation = !quotation;
-            input[i] = '\0';
-            i++;
-        }
 
-        if (tmp) {
-            if (start_token(tokens, &input[i])) {
-                free(input);
-                // Failed to allocate space for token pointers
-                return 2;
+            if (quotation) {
+                start_index = i + 1;
+            } else {
+                if (add_token(tokens, input + start_index, i - start_index)) {
+                    tokens_finish(tokens);
+                    free(input);
+                    return 1;
+                }
+
+                start_index = i + 1;
             }
         }
     }
 
+    if ((len - start_index) > 0 && add_token(tokens, input + start_index, len - start_index)) {
+        for (size_t i = 0; i < tokens->token_count; i++) {
+            free(tokens->tokens[i]);
+        }
+
+        free(input);
+        free(tokens->tokens);
+        return 1;
+    }
+
+    free(input);
     return 0;
 }
 
 void tokens_finish(struct command_tokens_t *token) {
+    for (size_t i = 0; i < token->token_count; i++) {
+        free(token->tokens[i]);
+    }
+
     token->token_count = 0;
-    free(token->buf_start);
     free(token->tokens);
 }
 
@@ -118,6 +174,10 @@ int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t in
 
     if (index_end > tokens->token_count) {
         return 2;
+    }
+
+    for (size_t i = index_start; i < index_end; i++) {
+        free(tokens->tokens[i]);
     }
 
     size_t to_remove = index_end - index_start;

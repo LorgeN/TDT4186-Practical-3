@@ -5,15 +5,11 @@
 
 // Space and tab
 #define IS_WHITESPACE(x) (x == 0x20 || x == 0x09)
+#define IS_IO_REDIRECT(x) (x == '>' || x == '<')
 
 struct command_tokens_t {
     size_t token_count;
     char **tokens;
-    // Pointer to the allocated memory section to contain
-    // the segmented string. We keep track of this to avoid
-    // reallocating everything and then freeing each 
-    // individual string
-    char *buf_start;
 };
 
 int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen);
