@@ -123,8 +123,6 @@ void commands_execute(struct command_execution_t *execution) {
             close(execution->in);
         }
 
-        printf("THIS WAS EXECUTED");
-
         // https://man7.org/linux/man-pages/man2/dup.2.html
         // Combined with STDIN_FILENO/STDOUT_FILENO etc.
         // https://stackoverflow.com/questions/2605130/redirecting-exec-output-to-a-buffer-or-file
