@@ -10,15 +10,29 @@
 int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
     size_t index = tokens_search(tokens, ">");
 
+    int append_mode = 0;
+
     if (index == -1) {
-        return -1;
+        index = tokens_search(tokens, ">>");
+        if (index == -1) {
+            return -1;
+        } else {
+            append_mode = 1;
+        }
     }
 
     char *filename_to_write = (*tokens).tokens[index + 1];
 
     tokens_remove(tokens, index, index + 2);
 
-    int fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    int fd;
+    if (append_mode == 1) {
+        // Difference between trunc and append:
+        // https://stackoverflow.com/questions/59886546/default-write-behaviour-o-trunc-or-o-append
+        fd = open(filename_to_write, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    } else {
+        fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    }
 
     execution->out = fd;
 
