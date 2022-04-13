@@ -10,9 +10,17 @@
 int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
     size_t index = tokens_search(tokens, ">");
 
+    int append_mode = 0;
+
     if (index == -1) {
-        execution->out = -1;
-        return 0;
+        index = tokens_search(tokens, ">>");
+        if (index == -1) {
+            // No error occurred, but there was no output redirection tokens present
+            execution->out = -1;
+            return 0;
+        } else {
+            append_mode = 1;
+        }
     }
 
     char *filename_to_write = strdup(tokens->tokens[index + 1]);
@@ -23,7 +31,15 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     // This call will free the above string if we do not duplicate it first
     tokens_remove(tokens, index, index + 2);
 
-    int fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    int fd;
+    if (append_mode == 1) {
+        // Difference between trunc and append:
+        // https://stackoverflow.com/questions/59886546/default-write-behaviour-o-trunc-or-o-append
+        fd = open(filename_to_write, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
+    } else {
+        fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    }
+
     free(filename_to_write);
 
     if (fd == -1) {
@@ -31,7 +47,6 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     }
 
     execution->out = fd;
-
     return 0;
 }
 
