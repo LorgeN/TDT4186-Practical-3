@@ -121,13 +121,11 @@ int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t in
     }
 
     size_t to_remove = index_end - index_start;
+    // Amount of char * to the right of the data we need to remove
+    size_t copy_count = tokens->token_count - index_end;
 
     // Move any data that comes after the section we remove so that it is not also removed
-    for (int i = 0; i < to_remove; i++) {
-        // This line only copies one string, so move all strings to correct position
-        // using for loop
-        memmove(tokens->tokens + index_start + i, tokens->tokens + index_end + i, tokens->token_count - index_end);
-    }
+    memmove(tokens->tokens + index_start, tokens->tokens + index_end, sizeof(char *) * copy_count);
 
     tokens->token_count -= to_remove;
     char **reallocated = realloc(tokens->tokens, sizeof(char *) * tokens->token_count);

@@ -11,14 +11,24 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     size_t index = tokens_search(tokens, ">");
 
     if (index == -1) {
-        return -1;
+        execution->out = -1;
+        return 0;
     }
 
-    char *filename_to_write = (*tokens).tokens[index + 1];
+    char *filename_to_write = strdup(tokens->tokens[index + 1]);
+    if (filename_to_write == NULL) {
+        return 1;
+    }
 
+    // This call will free the above string if we do not duplicate it first
     tokens_remove(tokens, index, index + 2);
 
     int fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
+    free(filename_to_write);
+
+    if (fd == -1) {
+        return 2;
+    }
 
     execution->out = fd;
 
@@ -29,17 +39,26 @@ int get_file_input_from_command_line(struct command_tokens_t *tokens, struct com
     size_t index = tokens_search(tokens, "<");
 
     if (index == -1) {
-        return -1;
+        execution->in = -1;
+        return 0;
     }
 
-    char *filename_to_read = (*tokens).tokens[index + 1];
+    char *filename_to_read = strdup(tokens->tokens[index + 1]);
+    if (filename_to_read == NULL) {
+        return 1;
+    }
 
+    // This call will free the above string if we do not duplicate it first
     tokens_remove(tokens, index, index + 2);
 
     int fd = open(filename_to_read, O_RDONLY);
+    free(filename_to_read);
+
+    if (fd == -1) {
+        return 2;
+    }
 
     execution->in = fd;
-
     return 0;
 }
 
@@ -52,9 +71,15 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 
     (*execution)->command_line = command_line;
 
-    get_file_input_from_command_line(tokens, (*execution));
+    if (get_file_input_from_command_line(tokens, *execution)) {
+        free(*execution);
+        return 1;
+    }
 
-    get_file_output_from_command_line(tokens, (*execution));
+    if (get_file_output_from_command_line(tokens, *execution)) {
+        free(*execution);
+        return 1;
+    }
 
     // Duplicate all strings so that they aren't lost when buffer
     // and tokens are destroyed. We only assume that execution pointer
@@ -97,28 +122,20 @@ void commands_execute(struct command_execution_t *execution) {
 
     // In child
     if (pid == 0) {
-        // TODO: I/O redirection here
-
         if (execution->out >= 0) {
-            dup2(execution->out, 1);
+            dup2(execution->out, STDOUT_FILENO);
             close(execution->out);
         }
 
         if (execution->in >= 0) {
-            dup2(execution->in, 0);
+            dup2(execution->in, STDIN_FILENO);
             close(execution->in);
         }
 
-        printf("THIS WAS EXECUTED");
-
-        // https://man7.org/linux/man-pages/man2/dup.2.html
-        // Combined with STDIN_FILENO/STDOUT_FILENO etc.
-        // https://stackoverflow.com/questions/2605130/redirecting-exec-output-to-a-buffer-or-file
-
-        // argv is already null terminated
+        // execution->argv is already null terminated
         execvp(execution->executable, execution->argv);
+        // Should never reach this point
         exit(EXIT_FAILURE);
-        return;
     }
 
     int status;
