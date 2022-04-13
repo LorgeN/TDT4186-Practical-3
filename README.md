@@ -6,7 +6,7 @@ Contains solution for assignment made by group 80
 
 - [x] 3.1 Lorgen
 - [ ] 3.2 Martinsen
-- [ ] 3.3 Jakob
+- [x] 3.3 Jakob
 - [ ] 3.4 Lorgen
 - [ ] 3.5 Martinsen
 

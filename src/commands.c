@@ -16,7 +16,7 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
 
     char *filename_to_write = (*tokens).tokens[index + 1];
 
-    tokens_remove(tokens, index, (*tokens).token_count);
+    tokens_remove(tokens, index, index + 2);
 
     int fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
 
@@ -25,8 +25,22 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     return 0;
 }
 
-int get_file_input_from_command_line(char *command_line) {
-    return -1;
+int get_file_input_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+    size_t index = tokens_search(tokens, "<");
+
+    if (index == -1) {
+        return -1;
+    }
+
+    char *filename_to_read = (*tokens).tokens[index + 1];
+
+    tokens_remove(tokens, index, index + 2);
+
+    int fd = open(filename_to_read, O_RDONLY);
+
+    execution->in = fd;
+
+    return 0;
 }
 
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
@@ -38,7 +52,7 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 
     (*execution)->command_line = command_line;
 
-    get_file_input_from_command_line((*execution)->command_line);
+    get_file_input_from_command_line(tokens, (*execution));
 
     get_file_output_from_command_line(tokens, (*execution));
 
@@ -91,7 +105,8 @@ void commands_execute(struct command_execution_t *execution) {
         }
 
         if (execution->in >= 0) {
-            printf("Has input");
+            dup2(execution->in, 0);
+            close(execution->in);
         }
 
         printf("THIS WAS EXECUTED");

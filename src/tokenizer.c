@@ -123,7 +123,11 @@ int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t in
     size_t to_remove = index_end - index_start;
 
     // Move any data that comes after the section we remove so that it is not also removed
-    memmove(tokens->tokens + index_start, tokens->tokens + index_end, tokens->token_count - index_end);
+    for (int i = 0; i < to_remove; i++) {
+        // This line only copies one string, so move all strings to correct position
+        // using for loop
+        memmove(tokens->tokens + index_start + i, tokens->tokens + index_end + i, tokens->token_count - index_end);
+    }
 
     tokens->token_count -= to_remove;
     char **reallocated = realloc(tokens->tokens, sizeof(char *) * tokens->token_count);
