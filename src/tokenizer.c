@@ -9,14 +9,12 @@ static int add_token(struct command_tokens_t *tokens, char *ch, size_t len) {
         return 0;  // Nothing to add
     }
 
-    // We could preserve the previous value by not directly assigning
-    // here, but if this fails the entire operation has also failed so
-    // there is no point
-    tokens->tokens = realloc(tokens->tokens, sizeof(char *) * (tokens->token_count + 1));
-    if (tokens->tokens == NULL) {
+    char **reallocated = realloc(tokens->tokens, sizeof(char *) * (tokens->token_count + 1));
+    if (reallocated == NULL) {
         return 1;
     }
 
+    tokens->tokens = reallocated;
     tokens->token_count++;
     char *dest = malloc(len + 1);
     if (dest == NULL) {
