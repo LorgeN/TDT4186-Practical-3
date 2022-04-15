@@ -22,4 +22,10 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens, stru
 
 void commands_execute(struct command_execution_t *execution);
 
+size_t commands_get_running_count();
+
+struct command_execution_t *commands_get_running(size_t index);
+
+void commands_cleanup_running();
+
 #endif

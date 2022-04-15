@@ -11,6 +11,7 @@
 #define NEW_LINE '\n'
 
 volatile sig_atomic_t kill_line_flag;
+bool shutdown_flag = false;
 
 static void prompt() {
     char *cwd = getcwd(NULL, 0);
@@ -34,7 +35,10 @@ static void prompt() {
         // This only happens when the user enters CTRL + D, which gives EOF
         if (res == 0) {
             fprintf(stdout, "\nGood bye!\n");
-            exit(EXIT_SUCCESS);
+            free(cwd);
+            free(buf);
+            shutdown_flag = true;
+            return;
         }
 
         data += res;
@@ -106,7 +110,8 @@ int main(int argc, char **argv) {
 
     sigaction(SIGINT, &shutdown_sig_action, NULL);
 
-    while (true) {
+    while (!shutdown_flag) {
         prompt();
+        commands_cleanup_running();
     }
 }

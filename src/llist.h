@@ -22,4 +22,6 @@ int llist_remove_element(struct list_t *list, void *element);
 
 void llist_elements(struct list_t *list, void **elements);
 
+void *llist_get(struct list_t *list, size_t index);
+
 #endif

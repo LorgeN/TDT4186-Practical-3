@@ -7,7 +7,29 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+#include "llist.h"
+
+static struct list_t RUNNING_JOBS = {
+    .head = NULL,
+    .tail = NULL,
+    .size = 0};
+
+static int check_if_background(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+    char *last_token = tokens->tokens[tokens->token_count - 1];
+    if (strcmp(last_token, "&")) {
+        execution->background = false;
+        return 0;
+    }
+
+    execution->background = true;
+    if (tokens_remove(tokens, tokens->token_count - 1, tokens->token_count)) {
+        return 1;
+    }
+
+    return 0;
+}
+
+static int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
     size_t index = tokens_search(tokens, ">");
 
     int append_mode = 0;
@@ -29,7 +51,10 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     }
 
     // This call will free the above string if we do not duplicate it first
-    tokens_remove(tokens, index, index + 2);
+    if (tokens_remove(tokens, index, index + 2)) {
+        free(filename_to_write);
+        return 1;
+    }
 
     int fd;
     if (append_mode == 1) {
@@ -50,7 +75,7 @@ int get_file_output_from_command_line(struct command_tokens_t *tokens, struct co
     return 0;
 }
 
-int get_file_input_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+static int get_file_input_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
     size_t index = tokens_search(tokens, "<");
 
     if (index == -1) {
@@ -64,7 +89,10 @@ int get_file_input_from_command_line(struct command_tokens_t *tokens, struct com
     }
 
     // This call will free the above string if we do not duplicate it first
-    tokens_remove(tokens, index, index + 2);
+    if (tokens_remove(tokens, index, index + 2)) {
+        free(filename_to_read);
+        return 1;
+    }
 
     int fd = open(filename_to_read, O_RDONLY);
     free(filename_to_read);
@@ -77,6 +105,17 @@ int get_file_input_from_command_line(struct command_tokens_t *tokens, struct com
     return 0;
 }
 
+static void free_exec(struct command_execution_t *execution) {
+    // Free all the argument strings
+    for (size_t i = 0; i < execution->argc; i++) {
+        free(execution->argv[i]);
+    }
+
+    free(execution->argv);
+    free(execution->command_line);
+    free(execution);
+}
+
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
                        struct command_execution_t **execution) {
     *execution = malloc(sizeof(struct command_execution_t));
@@ -84,21 +123,12 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
         return 1;
     }
 
-    (*execution)->command_line = command_line;
-
-    if (get_file_input_from_command_line(tokens, *execution)) {
+    (*execution)->command_line = strdup(command_line);
+    if (check_if_background(tokens, *execution) || get_file_input_from_command_line(tokens, *execution) || get_file_output_from_command_line(tokens, *execution)) {
         free(*execution);
         return 1;
     }
 
-    if (get_file_output_from_command_line(tokens, *execution)) {
-        free(*execution);
-        return 1;
-    }
-
-    // Duplicate all strings so that they aren't lost when buffer
-    // and tokens are destroyed. We only assume that execution pointer
-    // is safe
     (*execution)->argc = tokens->token_count;
 
     (*execution)->argv = malloc(sizeof(char *) * ((*execution)->argc + 1));
@@ -112,12 +142,9 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 
         // Unallocate everything we allocated if this fails
         if ((*execution)->argv[i] == NULL) {
-            for (size_t j = 0; j < i; j++) {
-                free((*execution)->argv[j]);
-            }
-
-            free((*execution)->argv);
-            free(*execution);
+            // Set argc to i so we can use free_exec
+            (*execution)->argc = i;
+            free_exec(*execution);
             return 2;
         }
     }
@@ -153,6 +180,12 @@ void commands_execute(struct command_execution_t *execution) {
         exit(EXIT_FAILURE);
     }
 
+    execution->pid = pid;
+    if (execution->background) {
+        llist_append_element(&RUNNING_JOBS, execution);
+        return;
+    }
+
     int status;
     if (waitpid(pid, &status, 0) == -1) {
         fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid,
@@ -165,11 +198,50 @@ void commands_execute(struct command_execution_t *execution) {
                 WEXITSTATUS(status));
     }
 
-    // Free all the argument strings
-    for (size_t i = 0; i < execution->argc; i++) {
-        free(execution->argv[i]);
+    free_exec(execution);
+}
+
+size_t commands_get_running_count() {
+    return RUNNING_JOBS.size;
+}
+
+struct command_execution_t *commands_get_running(size_t index) {
+    return (struct command_execution_t *)llist_get(&RUNNING_JOBS, index);
+}
+
+void commands_cleanup_running() {
+    pid_t child;
+    int status;
+
+    struct command_execution_t **running_jobs = malloc(sizeof(struct command_execution_t *) * RUNNING_JOBS.size);
+    llist_elements(&RUNNING_JOBS, (void **)running_jobs);
+
+    struct command_execution_t *current;
+    while ((child = waitpid(-1, &status, WNOHANG)) > 0) {
+        current = NULL;
+        for (size_t i = 0; i < RUNNING_JOBS.size; i++) {
+            if (running_jobs[i]->pid == child) {
+                current = running_jobs[i];
+                break;
+            }
+        }
+
+        if (current == NULL) {
+            fprintf(stderr, "Unknown command execution for PID %d\n", child);
+            continue;
+        }
+
+        if (!WIFEXITED(status)) {
+            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", child,
+                    current->command_line);
+        } else {
+            fprintf(stdout, "Exit status [%s] = %d\n", current->command_line,
+                    WEXITSTATUS(status));
+        }
+
+        llist_remove_element(&RUNNING_JOBS, current);
+        free_exec(current);
     }
 
-    free(execution->argv);
-    free(execution);
+    free(running_jobs);
 }

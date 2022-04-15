@@ -86,3 +86,12 @@ void llist_elements(struct list_t *list, void **elements) {
         current = current->next;
     }
 }
+
+void *llist_get(struct list_t *list, size_t index) {
+    struct node_t *current = list->head;
+    for (size_t i = 0; i < index; i++) {
+        current = current->next;
+    }
+
+    return current->element;
+}
