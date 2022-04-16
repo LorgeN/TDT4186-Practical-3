@@ -194,3 +194,77 @@ int tokens_remove(struct command_tokens_t *tokens, size_t index_start, size_t in
     tokens->tokens = reallocated;
     return 0;
 }
+
+int tokens_split(char *token, struct command_tokens_t *input, size_t *count, struct command_tokens_t **output) {
+    // Not the most beautiful thing I've ever written, but it does at least work
+    size_t previous_split = 0;
+    *count = 1;  // We will always have 1 part, and then 1 extra for each split we encounter
+
+    // First determine the count. We could use realloc and modify everything as
+    // we go but that approach ended up being a mess of memory manipulation
+    for (size_t i = 0; i < input->token_count; i++) {
+        // Check if token is equal
+        if (strcmp(input->tokens[i], token)) {
+            continue;
+        }
+
+        (*count)++;
+    }
+
+    *output = malloc(sizeof(struct command_tokens_t) * (*count));
+    if ((*output) == NULL) {
+        return 1;
+    }
+
+    size_t part_index = 0;
+    struct command_tokens_t *current;
+    for (size_t i = 0; i < input->token_count; i++) {
+        // Check if token is equal
+        if (strcmp(input->tokens[i], token)) {
+            continue;
+        }
+
+        free(input->tokens[i]); // This token will no longer be used
+
+        current = &(*output)[part_index++];
+        if (current == NULL) {
+            free(*output);
+            return 1;
+        }
+
+        current->token_count = i - previous_split;
+        current->tokens = malloc(sizeof(char *) * current->token_count);
+        if (current->tokens == NULL) {
+            free(*output);
+            return 1;
+        }
+
+        // Copy pointers to tokens to the new part
+        memcpy(current->tokens, input->tokens + previous_split, sizeof(char *) * current->token_count);
+        previous_split = i + 1;
+    }
+
+    // Add the remaining characters. Even if this count is 0, we should add another part,
+    // since there should technically occur a split (e. g. "test |" with split on "|" should
+    // have 2 parts)
+    current = &(*output)[part_index++];
+    if (current == NULL) {
+        free(*output);
+        return 1;
+    }
+
+    current->token_count = input->token_count - previous_split;
+    current->tokens = malloc(sizeof(char *) * current->token_count);
+    if (current->tokens == NULL) {
+        free(*output);
+        return 1;
+    }
+
+    // Copy pointers to tokens to the new part
+    memcpy(current->tokens, input->tokens + previous_split, sizeof(char *) * current->token_count);
+
+    // Free the previous tokens struct
+    input->token_count = 0;
+    free(input->tokens);
+    return 0;
+}

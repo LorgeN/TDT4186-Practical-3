@@ -7,15 +7,20 @@
 
 #include "tokenizer.h"
 
-struct command_execution_t {
+struct command_part_t {
     int out;
     int in;
-    char *command_line;
     char *executable;
     int argc;
     char **argv;
-    bool background;
     pid_t pid;
+};
+
+struct command_execution_t {
+    char *command_line;
+    struct command_part_t *parts;
+    size_t part_count;
+    bool background;
 };
 
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens, struct command_execution_t **execution);

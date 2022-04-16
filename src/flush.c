@@ -78,8 +78,6 @@ static void prompt() {
             struct command_execution_t *execution;
             res = commands_make_exec(buf, &tokens, &execution);
 
-            tokens_finish(&tokens);
-
             if (res) {
                 fprintf(stderr, "Failed to make target for [%s], error: %d\n",
                         buf, res);

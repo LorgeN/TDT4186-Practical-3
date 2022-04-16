@@ -7,8 +7,9 @@ Contains solution for assignment made by group 80
 - [x] 3.1 Lorgen
 - [ ] 3.2 Martinsen
 - [x] 3.3 Jakob
-- [ ] 3.4 Lorgen
+- [x] 3.4 Lorgen
 - [ ] 3.5 Martinsen
+- [x] 3.6 Lorgen
 
 ## Building
 
@@ -17,3 +18,9 @@ Simply run `make` to build the project. The compiled program will be located at 
 ## Running
 
 Usage: `./flush`
+
+## Useful commands
+
+Check for memory and file descriptor leaks with Valgrind:
+
+`valgrind --leak-check=full --track-fds=yes ./flush`

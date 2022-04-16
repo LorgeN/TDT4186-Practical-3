@@ -29,7 +29,7 @@ static int check_if_background(struct command_tokens_t *tokens, struct command_e
     return 0;
 }
 
-static int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+static int get_file_output_from_command_line(struct command_tokens_t *tokens, struct command_part_t *execution) {
     size_t index = tokens_search(tokens, ">");
 
     int append_mode = 0;
@@ -75,7 +75,7 @@ static int get_file_output_from_command_line(struct command_tokens_t *tokens, st
     return 0;
 }
 
-static int get_file_input_from_command_line(struct command_tokens_t *tokens, struct command_execution_t *execution) {
+static int get_file_input_from_command_line(struct command_tokens_t *tokens, struct command_part_t *execution) {
     size_t index = tokens_search(tokens, "<");
 
     if (index == -1) {
@@ -106,12 +106,18 @@ static int get_file_input_from_command_line(struct command_tokens_t *tokens, str
 }
 
 static void free_exec(struct command_execution_t *execution) {
-    // Free all the argument strings
-    for (size_t i = 0; i < execution->argc; i++) {
-        free(execution->argv[i]);
+    struct command_part_t *part;
+    for (size_t i = 0; i < execution->part_count; i++) {
+        part = &execution->parts[i];
+        // Free all the argument strings
+        for (size_t j = 0; j < part->argc; j++) {
+            free(part->argv[j]);
+        }
+
+        free(part->argv);
     }
 
-    free(execution->argv);
+    free(execution->parts);
     free(execution->command_line);
     free(execution);
 }
@@ -123,77 +129,192 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
         return 1;
     }
 
+    // Do this check early so we can use original tokens, which
+    // is freed at a later point
+    if (check_if_background(tokens, *execution)) {
+        free(*execution);
+        return 1;
+    }
+
+    struct command_tokens_t *parts;
+    size_t part_count;
+
+    if (tokens_split("|", tokens, &part_count, &parts)) {
+        free(*execution);
+        return 1;
+    }
+
+    (*execution)->part_count = part_count;
+    (*execution)->parts = malloc(sizeof(struct command_part_t) * part_count);
+    if ((*execution)->parts == NULL) {
+        free(*execution);
+        free(parts);
+        return 1;
+    }
+
     (*execution)->command_line = strdup(command_line);
-    if (check_if_background(tokens, *execution) || get_file_input_from_command_line(tokens, *execution) || get_file_output_from_command_line(tokens, *execution)) {
+    if ((*execution)->command_line == NULL) {
+        free((*execution)->parts);
         free(*execution);
+        free(parts);
         return 1;
     }
 
-    (*execution)->argc = tokens->token_count;
-
-    (*execution)->argv = malloc(sizeof(char *) * ((*execution)->argc + 1));
-    if ((*execution)->argv == NULL) {
-        free(*execution);
-        return 1;
-    }
-
-    for (size_t i = 0; i < (*execution)->argc; i++) {
-        (*execution)->argv[i] = strdup(tokens->tokens[i]);
-
-        // Unallocate everything we allocated if this fails
-        if ((*execution)->argv[i] == NULL) {
-            // Set argc to i so we can use free_exec
-            (*execution)->argc = i;
-            free_exec(*execution);
+    struct command_tokens_t *part_tokens;
+    struct command_part_t *part;
+    for (size_t i = 0; i < part_count; i++) {
+        part_tokens = &parts[i];
+        part = &((*execution)->parts[i]);
+        if (get_file_input_from_command_line(part_tokens, part) || get_file_output_from_command_line(part_tokens, part)) {
+            free((*execution)->parts);
+            free((*execution)->command_line);
+            free(*execution);
+            free(parts);
             return 2;
         }
+
+        part->argc = part_tokens->token_count;
+        part->argv = malloc(sizeof(char *) * (part->argc + 1));
+        if (part->argv == NULL) {
+            // Free everything previous to this iteration
+            (*execution)->part_count = i - 1;
+            free_exec(*execution);
+            free(parts);
+            return 2;
+        }
+
+        for (size_t j = 0; j < part->argc; j++) {
+            part->argv[j] = strdup(part_tokens->tokens[j]);
+
+            // Unallocate everything we allocated if this fails
+            if (part->argv[j] == NULL) {
+                // Set argc and part_count to i so we can use free_exec
+                part->argc = j;
+                (*execution)->part_count = i;
+                free_exec(*execution);
+                free(parts);
+                return 2;
+            }
+        }
+
+        part->executable = part->argv[0];
+
+        // exec calls require NULL termination of the vector so
+        // we handle it here for ease of use. The argc value shows
+        // one less than what is allocated, so any iteration or similar
+        // will not encounter any troubles
+        part->argv[part->argc] = NULL;
+
+        tokens_finish(part_tokens);  // We are done with these now
     }
 
-    (*execution)->executable = (*execution)->argv[0];
-
-    // exec calls require NULL termination of the vector so
-    // we handle it here for ease of use. The argc value shows
-    // one less than what is allocated, so any iteration or similar
-    // will not encounter any troubles
-    (*execution)->argv[(*execution)->argc] = NULL;
+    free(parts);
     return 0;
 }
 
-void commands_execute(struct command_execution_t *execution) {
+static void execute_part(struct command_part_t *part, bool pipe) {
     pid_t pid = fork();
 
     // In child
     if (pid == 0) {
-        if (execution->out >= 0) {
-            dup2(execution->out, STDOUT_FILENO);
-            close(execution->out);
+        if (part->out >= 0) {
+            dup2(part->out, STDOUT_FILENO);
+            close(part->out);
         }
 
-        if (execution->in >= 0) {
-            dup2(execution->in, STDIN_FILENO);
-            close(execution->in);
+        if (part->in >= 0) {
+            dup2(part->in, STDIN_FILENO);
+            close(part->in);
         }
 
         // execution->argv is already null terminated
-        execvp(execution->executable, execution->argv);
+        execvp(part->executable, part->argv);
         // Should never reach this point
         exit(EXIT_FAILURE);
     }
 
-    execution->pid = pid;
+    // Make sure we close fds in this process aswell
+    if (part->out >= 0) {
+        close(part->out);
+    }
+
+    if (!pipe && part->in >= 0) {
+        close(part->in);
+    }
+
+    part->pid = pid;
+}
+
+void commands_execute(struct command_execution_t *execution) {
+    // Check if we need pipes
+    struct command_part_t *part;
+    int in = -1, fd[2];
+
+    for (size_t i = 0; i < (execution->part_count - 1); i++) {
+        part = &execution->parts[i];
+
+        pipe(fd);
+
+        // This handles the case where someone is dumb and writes stuff
+        // like "ls -l > test.txt | grep whatever", which would otherwise
+        // leave an open file descriptor. We should however still allow
+        // I/O redirection into the first command, thus we check != 0
+        if (in != -1) {
+            if (part->in > 1) {
+                // Warn the idiots
+                fprintf(stderr, "Attempted I/O redirect into command that is part of pipeline at illegal position in command line [%s]! This redirection has been overwritten and ignored.\n", execution->command_line);
+                close(part->in);
+            }
+
+            part->in = in;
+        }
+
+        if (part->out >= 0) {
+            fprintf(stderr, "Attempted I/O redirect out of command that is part of pipeline at illegal position in command line [%s]! This redirection has been overwritten and ignored.\n", execution->command_line);
+            close(part->out);
+        }
+
+        part->out = fd[1];
+        execute_part(part, true);
+
+        if (in != -1) {
+            close(in);  // Close previous pipe read end
+        }
+
+        in = fd[0];
+    }
+
+    part = &execution->parts[execution->part_count - 1];
+    if (in != -1) {
+        if (part->in >= 0) {
+            // Warn the idiots
+            fprintf(stderr, "Attempted I/O redirect into command that is part of pipeline at illegal position in command line [%s]! This redirection has been overwritten and ignored.\n", execution->command_line);
+            close(part->in);
+        }
+
+        part->in = in;
+    }
+
+    execute_part(part, false);
+
     if (execution->background) {
         llist_append_element(&RUNNING_JOBS, execution);
         return;
     }
 
     int status;
-    if (waitpid(pid, &status, 0) == -1) {
-        fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid,
-                execution->command_line);
-    } else if (!WIFEXITED(status)) {
-        fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", pid,
-                execution->command_line);
-    } else {
+    // Wait for all children to complete in order
+    for (size_t i = 0; i < execution->part_count; i++) {
+        if (waitpid(execution->parts[i].pid, &status, 0) == -1) {
+            fprintf(stderr, "Error while waiting for PID %d [%s]\n", execution->parts[i].pid,
+                    execution->command_line);
+        } else if (!WIFEXITED(status)) {
+            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", execution->parts[i].pid,
+                    execution->command_line);
+        }
+    }
+
+    if (WIFEXITED(status)) {
         fprintf(stdout, "Exit status [%s] = %d\n", execution->command_line,
                 WEXITSTATUS(status));
     }
@@ -217,17 +338,19 @@ void commands_cleanup_running() {
     llist_elements(&RUNNING_JOBS, (void **)running_jobs);
 
     struct command_execution_t *current;
+    struct command_execution_t *tmp;
     while ((child = waitpid(-1, &status, WNOHANG)) > 0) {
         current = NULL;
         for (size_t i = 0; i < RUNNING_JOBS.size; i++) {
-            if (running_jobs[i]->pid == child) {
-                current = running_jobs[i];
+            // Only consider the last part
+            tmp = running_jobs[i];
+            if (tmp->parts[tmp->part_count - 1].pid == child) {
+                current = tmp;
                 break;
             }
         }
 
         if (current == NULL) {
-            fprintf(stderr, "Unknown command execution for PID %d\n", child);
             continue;
         }
 
