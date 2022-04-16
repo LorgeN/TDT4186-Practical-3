@@ -22,6 +22,11 @@ static void prompt() {
 
     ssize_t data = 0, allocated = 128;
     char *buf = malloc(allocated);
+    if (buf == NULL) {
+        fprintf(stderr, "Failed to allocate memory to input buffer!");
+        exit(EXIT_FAILURE);
+    }
+
     memset(buf, 0, allocated);
 
     fprintf(stdout, "%s: ", cwd);
@@ -63,6 +68,10 @@ static void prompt() {
         if (allocated - data < 32) {
             allocated += 64;
             buf = realloc(buf, allocated);
+            if (buf == NULL) {
+                fprintf(stderr, "Failed to allocate memory to input buffer!");
+                exit(EXIT_FAILURE);
+            }
         }
     }
 
