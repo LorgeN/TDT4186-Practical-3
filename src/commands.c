@@ -246,10 +246,12 @@ static void execute_part(struct command_part_t *part, bool pipe) {
 }
 
 void commands_execute(struct command_execution_t *execution) {
-    // Check if we need pipes
     struct command_part_t *part;
     int in = -1, fd[2];
 
+    // If there is no piping going on, this for loop will not run since
+    // part_count will be 1. This means we don't need any special
+    // handling for pipes vs no pipes
     for (size_t i = 0; i < (execution->part_count - 1); i++) {
         part = &execution->parts[i];
 
