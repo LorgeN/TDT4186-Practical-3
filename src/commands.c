@@ -59,7 +59,7 @@ static int get_file_output_from_command_line(struct command_tokens_t *tokens, st
     int fd;
     if (append_mode == 1) {
         // Difference between trunc and append:
-        // https://stackoverflow.com/questions/59886546/default-write-behaviour-o-trunc-or-o-append
+        // https://man7.org/linux/man-pages/man2/open.2.html
         fd = open(filename_to_write, O_WRONLY | O_CREAT | O_APPEND, S_IRUSR | S_IWUSR);
     } else {
         fd = open(filename_to_write, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR);
