@@ -352,6 +352,12 @@ void commands_cleanup_running() {
             }
         }
 
+        // This means that we have some piped command running in the background,
+        // and we have just gotten a signal that one of the earlier commands have
+        // finished. This does not mean that the entire command is done, so we wait
+        // until the last part of the command completes before we print that it is
+        // done. This does mean that if an error code occurs in one of the earlier
+        // parts this is lost, but that is an issue for another day
         if (current == NULL) {
             continue;
         }
