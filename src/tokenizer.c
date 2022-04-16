@@ -85,7 +85,7 @@ int tokens_read(struct command_tokens_t *tokens, char *input, size_t maxlen) {
         }
 
         // Special consideration to split even if there is no whitespace
-        if (IS_IO_REDIRECT(ch)) {
+        if (IS_IO_REDIRECT(ch) || IS_PIPE_SPLIT(ch)) {
             if (quotation) {
                 continue;
             }
@@ -224,7 +224,7 @@ int tokens_split(char *token, struct command_tokens_t *input, size_t *count, str
             continue;
         }
 
-        free(input->tokens[i]); // This token will no longer be used
+        free(input->tokens[i]);  // This token will no longer be used
 
         current = &(*output)[part_index++];
         if (current == NULL) {

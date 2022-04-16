@@ -3,9 +3,9 @@
 
 #include <string.h>
 
-// Space and tab
 #define IS_WHITESPACE(x) (x == 0x20 || x == 0x09)
 #define IS_IO_REDIRECT(x) (x == '>' || x == '<')
+#define IS_PIPE_SPLIT(x) (x == '|')
 
 struct command_tokens_t {
     size_t token_count;
