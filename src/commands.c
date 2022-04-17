@@ -213,6 +213,14 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 }
 
 static void execute_part(struct command_part_t *part, bool pipe) {
+    // chack if executable is cd
+        if (strcmp(part -> executable, "cd") == 0) {
+            part -> pid = -1;
+            change_wkd(part-> argv);
+
+            return;
+        }
+        
     pid_t pid = fork();
 
     // In child
@@ -367,4 +375,23 @@ void commands_cleanup_running() {
     }
 
     free(running_jobs);
+}
+
+// Function for handling the cd command
+int change_wkd(struct command_part_t *part) {
+    // check if argv has 2 or more args
+    if (part -> argv < 2) {
+        printf("argv has less then 2 elements\n");
+        return -1;
+    }
+        
+
+    // Check if passed argument is a legal dir
+    if (chdir(part -> argv[1]) == -1)
+    {
+        printf("There is no current directory named %s\n", part ->argv[1]);
+        return -1;
+    }
+
+    return 0;
 }
