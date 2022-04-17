@@ -255,6 +255,27 @@ static void execute_part(struct command_part_t *part, bool pipe) {
             close(part->in);
         }
 
+        // Printing all running background processes
+        // If there is no running, still give you a message
+        if (strcmp(part -> executable, "jobs") == 0)
+        {
+            struct command_execution_t *exec;
+
+            if (commands_get_running_count() > 0)
+            {
+                for (size_t i = 0; i < commands_get_running_count(); i++)
+                {
+                    exec = commands_get_running(i);
+                    printf("PID of process: %d. The command is :%s.\n", exec -> parts[exec -> part_count - 1].pid, exec -> command_line);
+                }
+                
+            } else {
+                printf("There is no running backgropund processes at this time\n");
+            }
+            exit(EXIT_SUCCESS);
+        }
+        
+
         // execution->argv is already null terminated
         execvp(part->executable, part->argv);
         // Should never reach this point
