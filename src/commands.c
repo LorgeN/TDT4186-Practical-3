@@ -122,6 +122,26 @@ static void free_exec(struct command_execution_t *execution) {
     free(execution);
 }
 
+// Function for handling the cd command
+int change_wkd(struct command_part_t *part) {
+    // check if argv has 2 or more args
+    if (part -> argc < 2) {
+        printf("argv has less then 2 elements\n");
+        return -1;
+    }
+        
+
+    // Check if passed argument is a legal dir
+    if (chdir(part -> argv[1]) == -1)
+    {
+        printf("There is no current directory named %s\n", part ->argv[1]);
+        return -1;
+    }
+
+    return 0;
+}
+
+
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
                        struct command_execution_t **execution) {
     *execution = malloc(sizeof(struct command_execution_t));
@@ -216,7 +236,7 @@ static void execute_part(struct command_part_t *part, bool pipe) {
     // chack if executable is cd
         if (strcmp(part -> executable, "cd") == 0) {
             part -> pid = -1;
-            change_wkd(part-> argv);
+            change_wkd(part);
 
             return;
         }
@@ -391,21 +411,3 @@ void commands_cleanup_running() {
     free(running_jobs);
 }
 
-// Function for handling the cd command
-int change_wkd(struct command_part_t *part) {
-    // check if argv has 2 or more args
-    if (part -> argv < 2) {
-        printf("argv has less then 2 elements\n");
-        return -1;
-    }
-        
-
-    // Check if passed argument is a legal dir
-    if (chdir(part -> argv[1]) == -1)
-    {
-        printf("There is no current directory named %s\n", part ->argv[1]);
-        return -1;
-    }
-
-    return 0;
-}
