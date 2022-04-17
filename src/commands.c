@@ -2,6 +2,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
@@ -125,22 +126,19 @@ static void free_exec(struct command_execution_t *execution) {
 // Function for handling the cd command
 int change_wkd(struct command_part_t *part) {
     // check if argv has 2 or more args
-    if (part -> argc < 2) {
+    if (part->argc < 2) {
         printf("argv has less then 2 elements\n");
         return -1;
     }
-        
 
     // Check if passed argument is a legal dir
-    if (chdir(part -> argv[1]) == -1)
-    {
-        printf("There is no current directory named %s\n", part ->argv[1]);
+    if (chdir(part->argv[1]) == -1) {
+        printf("There is no current directory named %s\n", part->argv[1]);
         return -1;
     }
 
     return 0;
 }
-
 
 int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
                        struct command_execution_t **execution) {
@@ -234,13 +232,13 @@ int commands_make_exec(char *command_line, struct command_tokens_t *tokens,
 
 static void execute_part(struct command_part_t *part, bool pipe) {
     // chack if executable is cd
-        if (strcmp(part -> executable, "cd") == 0) {
-            part -> pid = -1;
-            change_wkd(part);
+    if (strcmp(part->executable, "cd") == 0) {
+        part->pid = -1;
+        change_wkd(part);
 
-            return;
-        }
-        
+        return;
+    }
+
     pid_t pid = fork();
 
     // In child
@@ -255,26 +253,24 @@ static void execute_part(struct command_part_t *part, bool pipe) {
             close(part->in);
         }
 
-        // Printing all running background processes
-        // If there is no running, still give you a message
-        if (strcmp(part -> executable, "jobs") == 0)
-        {
-            struct command_execution_t *exec;
-
-            if (commands_get_running_count() > 0)
-            {
-                for (size_t i = 0; i < commands_get_running_count(); i++)
-                {
+        // Internal command that prints all running background processes. We
+        // run this in a forked process so that we can support pipes and
+        // redirects for this command which could be useful for things like
+        // searching for active processes (e.g. "jobs | grep rsync")
+        if (strcmp(part->executable, "jobs") == 0) {
+            if (commands_get_running_count() > 0) {
+                printf("Jobs running in background (%ld):\n", commands_get_running_count());
+                struct command_execution_t *exec;
+                for (size_t i = 0; i < commands_get_running_count(); i++) {
                     exec = commands_get_running(i);
-                    printf("PID of process: %d. The command is :%s.\n", exec -> parts[exec -> part_count - 1].pid, exec -> command_line);
+                    printf(" PID %d - \"%s\"\n", exec->parts[exec->part_count - 1].pid, exec->command_line);
                 }
-                
             } else {
-                printf("There is no running backgropund processes at this time\n");
+                printf("There are no jobs running in the background\n");
             }
+
             exit(EXIT_SUCCESS);
         }
-        
 
         // execution->argv is already null terminated
         execvp(part->executable, part->argv);
@@ -349,7 +345,9 @@ void commands_execute(struct command_execution_t *execution) {
     execute_part(part, false);
 
     if (execution->background) {
-        llist_append_element(&RUNNING_JOBS, execution);
+        if (llist_append_element(&RUNNING_JOBS, execution)) {
+            printf("Failed to append command line [%s] to background task list\n", execution->command_line);
+        }
         return;
     }
 
@@ -394,6 +392,12 @@ void commands_cleanup_running() {
     struct command_execution_t **running_jobs = malloc(sizeof(struct command_execution_t *) * RUNNING_JOBS.size);
     llist_elements(&RUNNING_JOBS, (void **)running_jobs);
 
+    // Flag for later removals. This avoids concurrent modification, which
+    // in this case results in us having free'd some of the blocks that are
+    // pointed to by running_jobs above
+    bool *remove_flag = malloc(sizeof(bool) * RUNNING_JOBS.size);
+    memset(remove_flag, 0, sizeof(bool) * RUNNING_JOBS.size);
+
     struct command_execution_t *current;
     struct command_execution_t *tmp;
     while ((child = waitpid(-1, &status, WNOHANG)) > 0) {
@@ -403,6 +407,7 @@ void commands_cleanup_running() {
             tmp = running_jobs[i];
             if (tmp->parts[tmp->part_count - 1].pid == child) {
                 current = tmp;
+                remove_flag[i] = true;
                 break;
             }
         }
@@ -424,11 +429,16 @@ void commands_cleanup_running() {
             fprintf(stdout, "Exit status [%s] = %d\n", current->command_line,
                     WEXITSTATUS(status));
         }
+    }
 
-        llist_remove_element(&RUNNING_JOBS, current);
-        free_exec(current);
+    for (size_t i = 0; i < RUNNING_JOBS.size; i++) {
+        if (remove_flag[i]) {
+            free_exec(running_jobs[i]);
+        }
     }
 
     free(running_jobs);
-}
 
+    llist_remove_by_flag(&RUNNING_JOBS, remove_flag);
+    free(remove_flag);
+}

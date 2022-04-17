@@ -47,12 +47,7 @@ int llist_append_element(struct list_t *list, void *element) {
     return 0;
 }
 
-int llist_remove_element(struct list_t *list, void *element) {
-    struct node_t *node = find_node(list, element);
-    if (node == NULL) {
-        return 1;  // Can't remove it if it isn't in the list
-    }
-
+static int remove_node(struct list_t *list, struct node_t *node) {
     // Check if this is the head
     if (node->prev != NULL) {
         node->prev->next = node->next;
@@ -73,6 +68,42 @@ int llist_remove_element(struct list_t *list, void *element) {
 
     // We allocated this when it was added, so we need to free it here
     free(node);
+    return 0;
+}
+
+int llist_remove_element(struct list_t *list, void *element) {
+    struct node_t *node = find_node(list, element);
+    if (node == NULL) {
+        return 1;  // Can't remove it if it isn't in the list
+    }
+
+    return remove_node(list, node);
+}
+
+int llist_remove_by_flag(struct list_t *list, bool *flags) {
+    // List is empty
+    if (!list->size) {
+        return 0;
+    }
+
+    struct node_t *node = list->tail;
+    struct node_t *prev;
+
+    // Iterate in reverse order to avoid modifying indices
+
+    // Iterating in reverse order with size_t (which is unsigned):
+    // https://stackoverflow.com/questions/7224386/iterating-with-size-t-0-as-a-boundary-condition
+    for (size_t i = list->size; i--;) {
+        prev = node->prev;
+        if (flags[i]) {
+            if (remove_node(list, node)) {
+                return 1;
+            }
+        }
+
+        node = prev;
+    }
+
     return 0;
 }
 

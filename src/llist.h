@@ -1,6 +1,7 @@
 #ifndef __FLUSH_LIST_H__
 #define __FLUSH_LIST_H__
 
+#include <stdbool.h>
 #include <stddef.h>
 
 /*
@@ -19,6 +20,8 @@ struct list_t {
 int llist_append_element(struct list_t *list, void *element);
 
 int llist_remove_element(struct list_t *list, void *element);
+
+int llist_remove_by_flag(struct list_t *list, bool *flags);
 
 void llist_elements(struct list_t *list, void **elements);
 
