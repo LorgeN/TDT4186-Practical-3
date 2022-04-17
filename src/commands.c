@@ -254,10 +254,12 @@ static void execute_part(struct command_part_t *part, bool pipe) {
 }
 
 void commands_execute(struct command_execution_t *execution) {
-    // Check if we need pipes
     struct command_part_t *part;
     int in = -1, fd[2];
 
+    // If there is no piping going on, this for loop will not run since
+    // part_count will be 1. This means we don't need any special
+    // handling for pipes vs no pipes
     for (size_t i = 0; i < (execution->part_count - 1); i++) {
         part = &execution->parts[i];
 
@@ -310,14 +312,20 @@ void commands_execute(struct command_execution_t *execution) {
         return;
     }
 
-    int status;
+    int status = 0;  // Default it to 0
+
+    pid_t pid;
     // Wait for all children to complete in order
     for (size_t i = 0; i < execution->part_count; i++) {
-        if (waitpid(execution->parts[i].pid, &status, 0) == -1) {
-            fprintf(stderr, "Error while waiting for PID %d [%s]\n", execution->parts[i].pid,
-                    execution->command_line);
+        pid = execution->parts[i].pid;
+        if (pid == (pid_t)-1) {
+            continue;  // Can happen if no new process is spawned
+        }
+
+        if (waitpid(pid, &status, 0) == -1) {
+            fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid, execution->command_line);
         } else if (!WIFEXITED(status)) {
-            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", execution->parts[i].pid,
+            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", pid,
                     execution->command_line);
         }
     }
@@ -358,6 +366,12 @@ void commands_cleanup_running() {
             }
         }
 
+        // This means that we have some piped command running in the background,
+        // and we have just gotten a signal that one of the earlier commands have
+        // finished. This does not mean that the entire command is done, so we wait
+        // until the last part of the command completes before we print that it is
+        // done. This does mean that if an error code occurs in one of the earlier
+        // parts this is lost, but that is an issue for another day
         if (current == NULL) {
             continue;
         }
