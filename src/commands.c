@@ -304,14 +304,20 @@ void commands_execute(struct command_execution_t *execution) {
         return;
     }
 
-    int status;
+    int status = 0;  // Default it to 0
+
+    pid_t pid;
     // Wait for all children to complete in order
     for (size_t i = 0; i < execution->part_count; i++) {
-        if (waitpid(execution->parts[i].pid, &status, 0) == -1) {
-            fprintf(stderr, "Error while waiting for PID %d [%s]\n", execution->parts[i].pid,
-                    execution->command_line);
+        pid = execution->parts[i].pid;
+        if (pid == (pid_t)-1) {
+            continue;  // Can happen if no new process is spawned
+        }
+
+        if (waitpid(pid, &status, 0) == -1) {
+            fprintf(stderr, "Error while waiting for PID %d [%s]\n", pid, execution->command_line);
         } else if (!WIFEXITED(status)) {
-            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", execution->parts[i].pid,
+            fprintf(stderr, "Process did not exit normally for PID %d [%s]\n", pid,
                     execution->command_line);
         }
     }
