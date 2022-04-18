@@ -127,13 +127,13 @@ static void free_exec(struct command_execution_t *execution) {
 int change_wkd(struct command_part_t *part) {
     // check if argv has 2 or more args
     if (part->argc < 2) {
-        printf("argv has less then 2 elements\n");
+        printf("Please provide a target directory to change to\n");
         return -1;
     }
 
     // Check if passed argument is a legal dir
     if (chdir(part->argv[1]) == -1) {
-        printf("There is no current directory named %s\n", part->argv[1]);
+        printf("Couldn't find target directory \"%s\"\n", part->argv[1]);
         return -1;
     }
 
